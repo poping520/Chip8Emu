@@ -4,7 +4,7 @@ package com.poping520.chip8emu;
  * @author poping520
  * create on 2019/5/16 14:39
  */
-public final class CPU {
+public final class CPU extends Thread {
 
     private Memory mMemory;
 
@@ -15,22 +15,46 @@ public final class CPU {
     /* 数据寄存器数组 (Data Registers) 16 * 8-bit */
     private int[] v;
 
-    /* 地址寄存器 Address Register 16-bit*/
-    private int i;
+    /* 地址寄存器 - 保存内存地址索引 (Address Register) 16-bit*/
+    private int index;
 
-    /* 程序计数器 (Program Counter Register) 16-bit */
+    /* 程序计数器 - 程序指针 (Program Counter Register) 16-bit */
     private int pc;
 
     private int delayTimer;
 
     private int soundTimer;
 
+    /* chip8 程序从内存地址 0x200 开始 */
+    static final int CHIP8_PROGRAM_COUNTER_START = 0x200;
+
+    CPU(Memory memory, Display display) {
+        this.mMemory = memory;
+        this.mDisplay = display;
+        reset();
+    }
+
+    @Override
+    public void run() {
+        while (isAlive()) {
+            cycle();
+        }
+    }
+
     public void reset() {
-        mMemory = new Memory();
-        mDisplay = new Display(mMemory);
+        /* pc 指针置位 0x200 */
+        pc = CHIP8_PROGRAM_COUNTER_START;
+
         /* chip-8 有 16 个数据寄存器 V0 ~ VF */
         v = new int[16];
-        pc = 0x200;
+    }
+
+    /* cpu 循环 */
+    private void cycle() {
+        /* 读取一个指令 16-bit */
+        short opcode = mMemory.read(pc);
+        opcode += mMemory.read(pc + 1);
+        executeInstruction(opcode);
     }
 
     /*
@@ -175,7 +199,7 @@ public final class CPU {
 
             case 0xA:
                 /* ANNN: Sets I to the address NNN. */
-                i = NNN;
+                index = NNN;
                 break;
 
             case 0xB:
@@ -242,7 +266,7 @@ public final class CPU {
 
                     case 0x1E:
                         /* FX1E: Adds VX to I. */
-                        i = (i + v[X]) & 0x0FFF;
+                        index = (index + v[X]) & 0x0FFF;
                         break;
 
                     case 0x29:
@@ -250,6 +274,31 @@ public final class CPU {
                          * Characters 0-F (in hexadecimal) are represented by a 4x5 font.
                          */
 
+                        break;
+
+                    case 0x33:
+                        break;
+
+                    case 0x55:
+                        /* FX55: Stores V0 to VX (including VX) in memory starting at address I.
+                         * The offset from I is increased by 1 for each value written, but I itself is left unmodified.
+                         * 将 V0 ~ VX 的值从当前内存地址索引处, 按每次偏移量加 1 依次写入到内存中
+                         * 索引自身不改变
+                         */
+                        for (int i = 0; i <= X; i++) { /* 包括 VX */
+                            mMemory.write((byte) v[i], index + i);
+                        }
+                        break;
+
+                    case 0x65:
+                        /* FX65: Fills V0 to VX (including VX) with values from memory starting at address I.
+                         * The offset from I is increased by 1 for each value written, but I itself is left unmodified.
+                         * 从当前内存地址索引处, 按每次偏移量加 1 依次将内存的读取至 V0 ~ VX 中
+                         * 索引自身不改变
+                         */
+                        for (int i = 0; i <= X; i++) { /* 包括 VX */
+                            v[i] = mMemory.read(index + i);
+                        }
                         break;
                 }
                 break;
