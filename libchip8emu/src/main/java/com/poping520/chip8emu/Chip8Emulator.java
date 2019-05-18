@@ -17,13 +17,16 @@ public final class Chip8Emulator {
 
     private Display mDisplay;
 
+    private Keyboard mKeyboard;
+
     /* chip 处理器 */
     private CPU mCPU;
 
     public Chip8Emulator() {
         mMemory = new Memory(CPU.CHIP8_PROGRAM_COUNTER_START);
-        mDisplay = new Display(mMemory);
-        mCPU = new CPU(mMemory, mDisplay);
+        mDisplay = new Display();
+        mKeyboard = new Keyboard();
+        mCPU = new CPU(mMemory, mDisplay, mKeyboard);
     }
 
     public void run() {

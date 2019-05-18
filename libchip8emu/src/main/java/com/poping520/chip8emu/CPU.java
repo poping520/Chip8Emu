@@ -10,6 +10,8 @@ public final class CPU extends Thread {
 
     private Display mDisplay;
 
+    private Keyboard mKeyboard;
+
     /* Java 中的基本数字类型都是有符号类型 所以 以下变量所用的类型都比其所占的空间要大 */
 
     /* 数据寄存器数组 (Data Registers) 16 * 8-bit */
@@ -28,9 +30,10 @@ public final class CPU extends Thread {
     /* chip8 程序从内存地址 0x200 开始 */
     static final int CHIP8_PROGRAM_COUNTER_START = 0x200;
 
-    CPU(Memory memory, Display display) {
+    CPU(Memory memory, Display display, Keyboard keyboard) {
         this.mMemory = memory;
         this.mDisplay = display;
+        this.mKeyboard = keyboard;
         reset();
     }
 
@@ -52,8 +55,7 @@ public final class CPU extends Thread {
     /* cpu 循环 */
     private void cycle() {
         /* 读取一个指令 16-bit */
-        short opcode = mMemory.read(pc);
-        opcode += mMemory.read(pc + 1);
+        short opcode = mMemory.readOpcode(pc);
         executeInstruction(opcode);
     }
 
@@ -70,7 +72,7 @@ public final class CPU extends Thread {
      * I  : 16-bit address register (void pointer)
      */
     private void executeInstruction(short opcode) {
-
+        System.out.printf("%x\n", opcode);
         final int NNN = opcode & 0x0FFF;
         final short NN = (short) (opcode & 0x00FF);
         final byte X = (byte) ((opcode & 0X0F00) >> 8);
@@ -222,22 +224,26 @@ public final class CPU extends Thread {
                  * As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn,
                  * and to 0 if that doesn’t happen
                  */
-
                 int x = v[X];
                 int y = v[Y];
                 int len = opcode & 0X000F;
-                mDisplay.draw(x, y, len);
+                System.out.printf("(%d, %d)", x, y);
                 break;
 
             case 0xE:
                 switch (opcode & 0x00FF) {
                     case 0x9E:
                         /* EX9E: Skips the next instruction if the key stored in VX is pressed. */
-
+                        if (mKeyboard.isKeyPressed(v[X])) {
+                            pc += 2;
+                        }
                         break;
 
                     case 0xA1:
                         /* EXA1: Skips the next instruction if the key stored in VX isn't pressed. */
+                        if (!mKeyboard.isKeyPressed(v[X])) {
+                            pc += 2;
+                        }
                         break;
                 }
 
@@ -252,6 +258,7 @@ public final class CPU extends Thread {
 
                     case 0x0A:
                         /* FX0A: A key press is awaited, and then stored in VX. */
+
                         break;
 
                     case 0x15:

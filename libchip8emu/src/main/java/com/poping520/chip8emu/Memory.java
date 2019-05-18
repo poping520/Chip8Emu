@@ -42,4 +42,10 @@ public final class Memory {
     short read(int addr) {
         return mMemArr[addr];
     }
+
+    short readOpcode(int pc) {
+        final short first = read(pc);
+        final short second = read(pc + 1);
+        return (short) ((first << 8) + second);
+    }
 }
