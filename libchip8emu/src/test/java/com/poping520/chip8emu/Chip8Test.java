@@ -11,7 +11,7 @@ public class Chip8Test {
     public static void main(String[] args) throws Exception {
 
         String classPath = Chip8Test.class.getClassLoader().getResource(".").getPath();
-        String romPath = classPath.replace("build/classes/java/main/", "rom/Rush_Hour.ch8");
+        String romPath = classPath.replace("build/classes/java/test/", "rom/Rush_Hour.ch8");
 
         Chip8Emulator emu = new Chip8Emulator();
         emu.loadRom(new File(romPath));

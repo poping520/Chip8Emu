@@ -28,13 +28,13 @@ public final class Memory {
             throw new Chip8Exception("ERROR ROM");
 
         for (byte romByte : romBytes) {
-            write(romByte, offset);
+            write(offset, romByte);
             ++offset;
         }
     }
 
     /* 向内存 addr 地址处写入 b */
-    void write(byte b, int addr) {
+    void write(int addr, byte b) {
         mMemArr[addr] = (short) (b & 0xFF);
     }
 

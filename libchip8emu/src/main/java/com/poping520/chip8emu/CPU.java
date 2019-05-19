@@ -1,5 +1,10 @@
 package com.poping520.chip8emu;
 
+import java.util.LinkedList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 /**
  * @author poping520
  * create on 2019/5/16 14:39
@@ -14,7 +19,8 @@ public final class CPU extends Thread {
 
     /* Java 中的基本数字类型都是有符号类型 所以 以下变量所用的类型都比其所占的空间要大 */
 
-    /* 数据寄存器数组 (Data Registers) 16 * 8-bit */
+    /* 数据寄存器数组 (Data Registers) 16 * 8-bit
+     */
     private int[] v;
 
     /* 地址寄存器 - 保存内存地址索引 (Address Register) 16-bit*/
@@ -23,8 +29,12 @@ public final class CPU extends Thread {
     /* 程序计数器 - 程序指针 (Program Counter Register) 16-bit */
     private int pc;
 
+    private LinkedList<Integer> stack;
+
+    /* 延迟计时器 */
     private int delayTimer;
 
+    /* 声音计时器 */
     private int soundTimer;
 
     /* chip8 程序从内存地址 0x200 开始 */
@@ -37,19 +47,40 @@ public final class CPU extends Thread {
         reset();
     }
 
-    @Override
-    public void run() {
-        while (isAlive()) {
-            cycle();
-        }
-    }
-
     public void reset() {
         /* pc 指针置位 0x200 */
         pc = CHIP8_PROGRAM_COUNTER_START;
 
         /* chip-8 有 16 个数据寄存器 V0 ~ VF */
         v = new int[16];
+
+        stack = new LinkedList<>();
+
+        delayTimer = 0;
+        soundTimer = 0;
+    }
+
+    @Override
+    public void run() {
+
+        startTimers();
+
+        while (isAlive()) {
+            cycle();
+        }
+    }
+
+    private void startTimers() {
+        final ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor();
+        ses.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                if (delayTimer != 0)
+                    delayTimer--;
+                if (soundTimer != 0)
+                    soundTimer--;
+            }
+        }, 16, 16, TimeUnit.MILLISECONDS);
     }
 
     /* cpu 循环 */
@@ -72,7 +103,9 @@ public final class CPU extends Thread {
      * I  : 16-bit address register (void pointer)
      */
     private void executeInstruction(short opcode) {
-        System.out.printf("%x\n", opcode);
+//        System.out.printf("%x => ", opcode);
+//        System.out.println(Arrays.toString(v) + " delay = " + delayTimer);
+
         final int NNN = opcode & 0x0FFF;
         final short NN = (short) (opcode & 0x00FF);
         final byte X = (byte) ((opcode & 0X0F00) >> 8);
@@ -92,6 +125,7 @@ public final class CPU extends Thread {
 
                     case 0xEE:
                         /* 00EE: Returns from a subroutine. */
+                        pc = stack.pop();
                         break;
                 }
                 break;
@@ -103,7 +137,8 @@ public final class CPU extends Thread {
 
             case 0x2:
                 /* 2NNN: Calls subroutine at NNN. */
-
+                stack.push(pc);
+                pc = NNN;
                 break;
 
             case 0x3:
@@ -184,11 +219,11 @@ public final class CPU extends Thread {
                         break;
 
                     case 0x7:
-
+                        v[X] = v[Y] - v[X];
                         break;
 
                     case 0xE:
-
+                        v[X] <<= 1;
                         break;
 
                 }
@@ -227,7 +262,7 @@ public final class CPU extends Thread {
                 int x = v[X];
                 int y = v[Y];
                 int len = opcode & 0X000F;
-                System.out.printf("(%d, %d)", x, y);
+                System.out.printf("(%d, %d, %d)\n ", x, y, len);
                 break;
 
             case 0xE:
@@ -246,7 +281,6 @@ public final class CPU extends Thread {
                         }
                         break;
                 }
-
                 break;
 
             case 0xF:
@@ -280,10 +314,18 @@ public final class CPU extends Thread {
                         /* FX29: Sets I to the location of the sprite for the character in VX.
                          * Characters 0-F (in hexadecimal) are represented by a 4x5 font.
                          */
-
+                        index = v[X] * 5;
                         break;
 
                     case 0x33:
+                        /* FX33: Stores the binary-coded decimal representation of VX,
+                         * with the most significant of three digits at the address in I,
+                         * the middle digit at I plus 1, and the least significant digit at I plus 2.
+                         * 将 VX 的值用十进制表示, 分别取其百位/十位/各位, 保存到内存的 I/I+1/I+2 位置中
+                         */
+                        mMemory.write(index, (byte) (v[X] / 100));
+                        mMemory.write(index + 1, (byte) ((v[X] % 100) / 10));
+                        mMemory.write(index + 2, (byte) (v[X] % 10));
                         break;
 
                     case 0x55:
@@ -293,7 +335,7 @@ public final class CPU extends Thread {
                          * 索引自身不改变
                          */
                         for (int i = 0; i <= X; i++) { /* 包括 VX */
-                            mMemory.write((byte) v[i], index + i);
+                            mMemory.write(index + i, (byte) v[i]);
                         }
                         break;
 
@@ -309,7 +351,6 @@ public final class CPU extends Thread {
                         break;
                 }
                 break;
-
         }
     }
 }
